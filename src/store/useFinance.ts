@@ -2,7 +2,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import type { Cents, DateKey, Goal, Settings, Transaction } from '../lib/types';
+import { todayKey } from '../lib/dates';
+import { buildInstallments, dueRecurring } from '../lib/planning';
+import type { Cents, DateKey, Goal, RecurringItem, Settings, Transaction } from '../lib/types';
 
 const uid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
@@ -22,11 +24,23 @@ interface FinanceState {
   categoryBudgets: Record<string, Cents>;
   /** Dias marcados como "não gastei nada hoje". */
   checkIns: DateKey[];
+  /** Contas fixas e rendas recorrentes. */
+  recurring: RecurringItem[];
   settings: Settings;
 
   addTransaction: (t: Omit<Transaction, 'id' | 'createdAt'>) => Transaction;
   updateTransaction: (id: string, patch: Partial<Omit<Transaction, 'id'>>) => void;
   removeTransaction: (id: string) => void;
+  /** Cria todas as parcelas de uma compra. Retorna a primeira. */
+  addInstallmentPurchase: (p: { amount: Cents; categoryId: string; note: string; date: DateKey }, n: number) => Transaction;
+  removeInstallmentGroup: (groupId: string) => void;
+
+  addRecurring: (r: Omit<RecurringItem, 'id' | 'createdAt'>) => RecurringItem;
+  updateRecurring: (id: string, patch: Partial<Omit<RecurringItem, 'id'>>) => void;
+  /** Remove a recorrente. Os lançamentos que ela já fez continuam no extrato. */
+  removeRecurring: (id: string) => void;
+  /** Lança as contas fixas e rendas que já venceram neste mês. Retorna quantas lançou. */
+  syncRecurring: (today?: DateKey) => number;
 
   addGoal: (g: Omit<Goal, 'id' | 'createdAt' | 'saved'> & { saved?: Cents }) => Goal;
   updateGoal: (id: string, patch: Partial<Omit<Goal, 'id'>>) => void;
@@ -46,6 +60,7 @@ export const useFinance = create<FinanceState>()(
       goals: [],
       categoryBudgets: {},
       checkIns: [],
+      recurring: [],
       settings: DEFAULT_SETTINGS,
 
       addTransaction: (t) => {
@@ -56,6 +71,35 @@ export const useFinance = create<FinanceState>()(
       updateTransaction: (id, patch) =>
         set((s) => ({ transactions: s.transactions.map((t) => (t.id === id ? { ...t, ...patch } : t)) })),
       removeTransaction: (id) => set((s) => ({ transactions: s.transactions.filter((t) => t.id !== id) })),
+      addInstallmentPurchase: (p, n) => {
+        const groupId = uid();
+        const now = Date.now();
+        const txs: Transaction[] = buildInstallments(p, n, groupId).map((t, i) => ({ ...t, id: `${groupId}-${i + 1}`, createdAt: now }));
+        set((s) => ({ transactions: [...txs, ...s.transactions] }));
+        return txs[0];
+      },
+      removeInstallmentGroup: (groupId) =>
+        set((s) => ({ transactions: s.transactions.filter((t) => t.installment?.groupId !== groupId) })),
+
+      addRecurring: (r) => {
+        const item: RecurringItem = { ...r, id: uid(), createdAt: Date.now() };
+        set((s) => ({ recurring: [...s.recurring, item] }));
+        return item;
+      },
+      updateRecurring: (id, patch) => set((s) => ({ recurring: s.recurring.map((r) => (r.id === id ? { ...r, ...patch } : r)) })),
+      removeRecurring: (id) => set((s) => ({ recurring: s.recurring.filter((r) => r.id !== id) })),
+      syncRecurring: (today = todayKey()) => {
+        let created = 0;
+        set((s) => {
+          const due = dueRecurring(s.recurring, s.transactions, today);
+          created = due.length;
+          if (!due.length) return s;
+          const now = Date.now();
+          const txs: Transaction[] = due.map((t, i) => ({ ...t, id: uid() + i, createdAt: now }));
+          return { transactions: [...txs, ...s.transactions] };
+        });
+        return created;
+      },
 
       addGoal: (g) => {
         const goal: Goal = { saved: 0, ...g, id: uid(), createdAt: Date.now() };
@@ -79,22 +123,25 @@ export const useFinance = create<FinanceState>()(
       checkIn: (date) => set((s) => (s.checkIns.includes(date) ? s : { checkIns: [...s.checkIns, date] })),
       updateSettings: (patch) => set((s) => ({ settings: { ...s.settings, ...patch } })),
       resetAll: () =>
-        set({ transactions: [], goals: [], categoryBudgets: {}, checkIns: [], settings: DEFAULT_SETTINGS }),
+        set({ transactions: [], goals: [], categoryBudgets: {}, checkIns: [], recurring: [], settings: DEFAULT_SETTINGS }),
     }),
     {
       name: 'my-finance-v1',
-      version: 1,
+      version: 2,
+      // v1 -> v2: chegam as contas recorrentes; os dados antigos continuam iguais
+      migrate: (persisted) => ({ recurring: [], ...(persisted as object) }) as Partial<FinanceState>,
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (s) => ({
         transactions: s.transactions,
         goals: s.goals,
         categoryBudgets: s.categoryBudgets,
         checkIns: s.checkIns,
+        recurring: s.recurring,
         settings: s.settings,
       }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<FinanceState>;
-        return { ...current, ...p, settings: { ...DEFAULT_SETTINGS, ...(p.settings ?? {}) } };
+        return { ...current, ...p, recurring: p.recurring ?? [], settings: { ...DEFAULT_SETTINGS, ...(p.settings ?? {}) } };
       },
     },
   ),

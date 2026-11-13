@@ -19,6 +19,31 @@ export function confirmAction(title: string, message: string, confirmLabel = 'Co
   });
 }
 
+/**
+ * Pergunta com várias opções destrutivas. Retorna o índice escolhido ou -1 se cancelar.
+ * No navegador, pergunta uma opção de cada vez.
+ */
+export function chooseAction(title: string, message: string, options: string[]): Promise<number> {
+  if (Platform.OS === 'web') {
+    if (typeof window === 'undefined') return Promise.resolve(-1);
+    for (let i = 0; i < options.length; i++) {
+      if (window.confirm(`${title}\n\n${message}\n\nOK = ${options[i]}`)) return Promise.resolve(i);
+    }
+    return Promise.resolve(-1);
+  }
+  return new Promise((resolve) => {
+    Alert.alert(
+      title,
+      message,
+      [
+        { text: 'Cancelar', style: 'cancel', onPress: () => resolve(-1) },
+        ...options.map((text, i) => ({ text, style: 'destructive' as const, onPress: () => resolve(i) })),
+      ],
+      { cancelable: true, onDismiss: () => resolve(-1) },
+    );
+  });
+}
+
 export function notify(title: string, message: string) {
   if (Platform.OS === 'web') {
     if (typeof window !== 'undefined') window.alert(`${title}\n\n${message}`);

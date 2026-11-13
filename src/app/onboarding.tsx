@@ -10,22 +10,29 @@ import { useFinance } from '../store/useFinance';
 
 const STEPS = 4;
 const HOURS = [9, 12, 18, 20, 21, 22];
+const SALARY_DAYS = [1, 5, 10, 15, 20, 25, 30];
 
 export default function Onboarding() {
   const insets = useSafeAreaInsets();
   const updateSettings = useFinance((s) => s.updateSettings);
+  const addRecurring = useFinance((s) => s.addRecurring);
+  const syncRecurring = useFinance((s) => s.syncRecurring);
   const [step, setStep] = useState(0);
   const [name, setName] = useState('');
-  const [limit, setLimit] = useState(0);
+  const [salary, setSalary] = useState(0);
+  const [salaryDay, setSalaryDay] = useState(5);
   const [hour, setHour] = useState(20);
   const [saving, setSaving] = useState(false);
 
   const finish = async (reminder: boolean) => {
     setSaving(true);
     const result = reminder ? await syncDailyReminder(true, hour, 0) : 'ok';
+    if (salary > 0) {
+      addRecurring({ type: 'income', name: 'Salário', amount: salary, categoryId: 'salary', dayOfMonth: salaryDay, active: true });
+      syncRecurring();
+    }
     updateSettings({
       name: name.trim(),
-      monthlyLimit: limit,
       reminderEnabled: reminder && result === 'ok',
       reminderHour: hour,
       reminderMinute: 0,
@@ -53,7 +60,7 @@ export default function Onboarding() {
             <Text style={s.headline}>Uma vida financeira saudável começa com um hábito simples.</Text>
             <Benefit icon="flash" text="Registre um gasto em segundos, do jeito que você fala: “almoço 32,50”." />
             <Benefit icon="flame" text="Crie sequência de dias cuidando do seu dinheiro." />
-            <Benefit icon="pie-chart" text="Saiba quanto ainda pode gastar por dia no mês." />
+            <Benefit icon="pie-chart" text="Saiba todo dia quanto ainda pode gastar, já descontando contas e parcelas." />
             <Benefit icon="flag" text="Junte dinheiro para seus objetivos com metas." />
           </View>
         )}
@@ -79,12 +86,18 @@ export default function Onboarding() {
 
         {step === 2 && (
           <View style={s.body}>
-            <Text style={s.stepTitle}>Quanto você quer gastar no máximo por mês?</Text>
+            <Text style={s.stepTitle}>Quanto você recebe por mês?</Text>
             <Text style={s.stepText}>
-              Esse é o seu limite mensal. Com ele, o app mostra quanto ainda dá para gastar por dia. Você pode mudar depois.
+              Com a sua renda, o app calcula quanto você pode gastar por dia. Contas fixas como aluguel você adiciona depois.
             </Text>
             <View style={s.amountBox}>
-              <AmountInput value={limit} onChange={setLimit} color={colors.primaryDark} testID="limit-input" />
+              <AmountInput value={salary} onChange={setSalary} color={colors.primaryDark} testID="salary-input" />
+            </View>
+            <Text style={[s.stepText, { marginTop: space.lg, marginBottom: space.sm }]}>Cai em que dia?</Text>
+            <View style={s.chips}>
+              {SALARY_DAYS.map((d) => (
+                <Chip key={d} label={`Dia ${d}`} selected={salaryDay === d} onPress={() => setSalaryDay(d)} />
+              ))}
             </View>
           </View>
         )}
@@ -111,12 +124,13 @@ export default function Onboarding() {
           {step === 1 && <Button testID="next-name" label="Continuar" disabled={!name.trim()} onPress={() => setStep(2)} />}
           {step === 2 && (
             <>
-              <Button testID="next-limit" label="Continuar" disabled={limit <= 0} onPress={() => setStep(3)} />
+              <Button testID="next-salary" label="Continuar" disabled={salary <= 0} onPress={() => setStep(3)} />
               <Button
-                label="Definir depois"
+                testID="skip-salary"
+                label="Prefiro informar depois"
                 variant="ghost"
                 onPress={() => {
-                  setLimit(0);
+                  setSalary(0);
                   setStep(3);
                 }}
               />

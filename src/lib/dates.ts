@@ -41,6 +41,23 @@ export function daysInMonth(month: MonthKey): number {
   return new Date(y, m, 0).getDate();
 }
 
+/** Data no dia `day` do mês, limitada ao último dia (31 em fevereiro vira 28/29). */
+export function dateInMonth(month: MonthKey, day: number): DateKey {
+  const d = Math.min(Math.max(1, Math.floor(day)), daysInMonth(month));
+  return `${month}-${pad(d)}`;
+}
+
+/** Mesma data N meses depois, ajustando o dia para o fim do mês quando preciso. */
+export function addMonthsToDate(key: DateKey, delta: number): DateKey {
+  return dateInMonth(addMonths(monthOf(key), delta), Number(key.slice(8, 10)));
+}
+
+/** "nov/26" */
+export function monthShort(month: MonthKey): string {
+  const [y, m] = month.split('-').map(Number);
+  return `${MONTHS_SHORT[m - 1]}/${String(y).slice(2)}`;
+}
+
 const MONTHS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 const MONTHS_SHORT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const WEEKDAYS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];

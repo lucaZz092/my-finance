@@ -18,6 +18,7 @@ export default function Ajustes() {
   const settings = useFinance((s) => s.settings);
   const transactions = useFinance((s) => s.transactions);
   const checkIns = useFinance((s) => s.checkIns);
+  const recurringCount = useFinance((s) => s.recurring.length);
   const updateSettings = useFinance((s) => s.updateSettings);
   const resetAll = useFinance((s) => s.resetAll);
   const [name, setName] = useState(settings.name);
@@ -93,6 +94,12 @@ export default function Ajustes() {
           <Ionicons name="wallet-outline" size={20} color={colors.primary} />
           <Text style={s.linkText}>Limite mensal de gastos</Text>
           <Text style={s.linkValue}>{settings.monthlyLimit > 0 ? formatBRL(settings.monthlyLimit) : 'Não definido'}</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+        </Pressable>
+        <Pressable style={s.linkRow} onPress={() => router.push('/recurring')} testID="settings-recurring">
+          <Ionicons name="repeat" size={20} color={colors.primary} />
+          <Text style={s.linkText}>Contas fixas e renda</Text>
+          <Text style={s.linkValue}>{recurringCount > 0 ? `${recurringCount} ${recurringCount === 1 ? 'item' : 'itens'}` : 'Nenhuma'}</Text>
           <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
         </Pressable>
       </Card>

@@ -4,18 +4,9 @@ import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Button, Card, IconBubble, ProgressBar, Screen, SectionTitle, TransactionRow } from '../../components/ui';
 import { getCategory } from '../../lib/categories';
-import { currentMonth, dayLabel, greeting, monthLabel, todayKey, weekdayInitial } from '../../lib/dates';
-import {
-  activeDays,
-  bestStreak,
-  budgetStatus,
-  currentStreak,
-  dailyAllowance,
-  expenseByCategory,
-  lastNDays,
-  summarize,
-  txOfMonth,
-} from '../../lib/finance';
+import { currentMonth, dateInMonth, dayLabel, greeting, monthLabel, todayKey, weekdayInitial } from '../../lib/dates';
+import { activeDays, bestStreak, currentStreak, expenseByCategory, lastNDays, summarize, txOfMonth } from '../../lib/finance';
+import { monthPlan } from '../../lib/planning';
 import { formatBRL } from '../../lib/money';
 import { tap } from '../../lib/platform';
 import { ruleBasedParser } from '../../lib/quickEntry';
@@ -30,6 +21,9 @@ export default function Home() {
   const settings = useFinance((s) => s.settings);
   const addTransaction = useFinance((s) => s.addTransaction);
   const removeTransaction = useFinance((s) => s.removeTransaction);
+  const addInstallmentPurchase = useFinance((s) => s.addInstallmentPurchase);
+  const removeInstallmentGroup = useFinance((s) => s.removeInstallmentGroup);
+  const recurring = useFinance((s) => s.recurring);
   const checkIn = useFinance((s) => s.checkIn);
 
   const today = todayKey();
@@ -46,14 +40,20 @@ export default function Home() {
   const week = lastNDays(today, 7);
   const doneToday = days.has(today);
   const recent = useMemo(
-    () => [...transactions].sort((a, b) => (a.date === b.date ? b.createdAt - a.createdAt : a.date < b.date ? 1 : -1)).slice(0, 5),
-    [transactions],
+    () =>
+      transactions
+        .filter((t) => t.date <= today)
+        .sort((a, b) => (a.date === b.date ? b.createdAt - a.createdAt : a.date < b.date ? 1 : -1))
+        .slice(0, 5),
+    [transactions, today],
   );
 
-  const limit = settings.monthlyLimit;
-  const allowance = dailyAllowance(limit, summary.expense, month, today);
-  const status = budgetStatus(summary.expense, limit);
-  const statusColor = status === 'over' ? colors.expense : status === 'warning' ? colors.warning : colors.primary;
+  const plan = useMemo(
+    () => monthPlan(transactions, recurring, settings.monthlyLimit, month, today),
+    [transactions, recurring, settings.monthlyLimit, month, today],
+  );
+  const pendingSoon = [...plan.pending].sort((a, b) => a.dayOfMonth - b.dayOfMonth).slice(0, 3);
+  const over = plan.todayLeft !== null && plan.todayLeft < 0;
 
   const submitQuick = async () => {
     const text = quick.trim();
@@ -65,13 +65,16 @@ export default function Home() {
       setQuick('');
       return;
     }
-    const tx = addTransaction({
-      type: parsed.type,
-      amount: parsed.amount,
-      categoryId: parsed.categoryId,
-      note: parsed.note,
-      date: parsed.date,
-    });
+    const tx =
+      parsed.installments > 1
+        ? addInstallmentPurchase({ amount: parsed.amount, categoryId: parsed.categoryId, note: parsed.note, date: parsed.date }, parsed.installments)
+        : addTransaction({
+            type: parsed.type,
+            amount: parsed.amount,
+            categoryId: parsed.categoryId,
+            note: parsed.note,
+            date: parsed.date,
+          });
     tap('success');
     setLastAdded(tx);
     setQuick('');
@@ -94,32 +97,57 @@ export default function Home() {
         </View>
       </View>
 
-      {/* Saldo */}
-      <View style={s.hero}>
-        <Text style={s.heroLabel}>Saldo do mês</Text>
-        <Text style={s.heroValue} testID="balance">
-          {formatBRL(summary.balance)}
-        </Text>
-        <View style={s.heroRow}>
-          <View style={s.heroItem}>
-            <View style={[s.heroIcon, { backgroundColor: 'rgba(255,255,255,0.18)' }]}>
-              <Ionicons name="arrow-down" size={16} color={colors.white} />
+      {/* O número do dia */}
+      <View style={s.hero} testID="day-hero">
+        {plan.dailyBase === null ? (
+          <>
+            <Text style={s.heroLabel}>Quanto você pode gastar hoje?</Text>
+            <Text style={s.heroSetup}>Informe sua renda e suas contas fixas. O app calcula, todo dia, quanto ainda dá para gastar.</Text>
+            <Pressable testID="setup-plan" style={s.heroBtn} onPress={() => router.push('/recurring')}>
+              <Ionicons name="sparkles" size={18} color={colors.primaryDark} />
+              <Text style={s.heroBtnText}>Configurar em 1 minuto</Text>
+            </Pressable>
+          </>
+        ) : (
+          <>
+            <Text style={s.heroLabel}>Hoje você pode gastar</Text>
+            <Text style={[s.heroValue, over && { color: '#FFD48A' }]} testID="day-number">
+              {formatBRL(Math.max(0, plan.todayLeft ?? 0))}
+            </Text>
+            {over ? (
+              <Text style={s.heroOver}>Você passou {formatBRL(-(plan.todayLeft ?? 0))} do valor de hoje. Amanhã ele se ajusta.</Text>
+            ) : (
+              <Text style={s.heroSub}>
+                de {formatBRL(plan.dailyBase)} por dia · {plan.daysLeft} {plan.daysLeft === 1 ? 'dia' : 'dias'} até o fim do mês
+              </Text>
+            )}
+            <View style={s.heroTrack}>
+              <View
+                style={[
+                  s.heroFill,
+                  { width: `${plan.dailyBase > 0 ? Math.min(100, (plan.spentToday / plan.dailyBase) * 100) : plan.spentToday > 0 ? 100 : 0}%` },
+                  over && { backgroundColor: '#FFD48A' },
+                ]}
+              />
             </View>
-            <View>
-              <Text style={s.heroSmall}>Receitas</Text>
-              <Text style={s.heroAmount}>{formatBRL(summary.income)}</Text>
+            <View style={s.heroRow}>
+              <View>
+                <Text style={s.heroSmall}>Sobra no mês</Text>
+                <Text style={s.heroAmount}>{formatBRL(Math.max(0, plan.remaining ?? 0))}</Text>
+              </View>
+              <View>
+                <Text style={s.heroSmall}>Saldo do mês</Text>
+                <Text style={s.heroAmount} testID="balance">
+                  {formatBRL(summary.balance)}
+                </Text>
+              </View>
             </View>
-          </View>
-          <View style={s.heroItem}>
-            <View style={[s.heroIcon, { backgroundColor: 'rgba(255,255,255,0.18)' }]}>
-              <Ionicons name="arrow-up" size={16} color={colors.white} />
-            </View>
-            <View>
-              <Text style={s.heroSmall}>Despesas</Text>
-              <Text style={s.heroAmount}>{formatBRL(summary.expense)}</Text>
-            </View>
-          </View>
-        </View>
+            <Pressable testID="can-buy" style={[s.heroBtn, s.heroBtnWide]} onPress={() => router.push('/can-buy')}>
+              <Ionicons name="help-circle" size={20} color={colors.primaryDark} />
+              <Text style={s.heroBtnText}>Posso comprar?</Text>
+            </Pressable>
+          </>
+        )}
       </View>
 
       {/* Lançamento rápido */}
@@ -130,7 +158,7 @@ export default function Home() {
             testID="quick-input"
             value={quick}
             onChangeText={setQuick}
-            placeholder='Ex: "almoço 32,50" ou "uber 18 ontem"'
+            placeholder='Ex: "almoço 32,50" ou "tênis 600 em 6x"'
             placeholderTextColor={colors.textMuted}
             style={s.quickInput}
             returnKeyType="send"
@@ -146,10 +174,11 @@ export default function Home() {
             <IconBubble icon={getCategory(lastAdded.categoryId).icon} color={getCategory(lastAdded.categoryId).color} size={32} />
             <View style={{ flex: 1, marginLeft: space.sm }}>
               <Text style={[s.addedTitle, { color: lastAdded.type === 'income' ? colors.income : colors.text }]} numberOfLines={1}>
-                {lastAdded.type === 'income' ? '+' : '-'} {formatBRL(lastAdded.amount)} ✓
+                {lastAdded.type === 'income' ? '+' : '-'} {formatBRL(lastAdded.installment ? lastAdded.installment.purchaseTotal : lastAdded.amount)} ✓
               </Text>
               <Text style={s.addedSub} numberOfLines={1}>
                 {lastAdded.type === 'income' ? 'Receita' : 'Despesa'} · {getCategory(lastAdded.categoryId).name}
+                {lastAdded.installment ? ` · ${lastAdded.installment.total}x de ${formatBRL(lastAdded.amount)}` : ''}
                 {lastAdded.date !== today ? ` · ${dayLabel(lastAdded.date)}` : ''}
               </Text>
             </View>
@@ -166,7 +195,8 @@ export default function Home() {
               hitSlop={8}
               style={{ marginLeft: space.md }}
               onPress={() => {
-                removeTransaction(lastAdded.id);
+                if (lastAdded.installment) removeInstallmentGroup(lastAdded.installment.groupId);
+                else removeTransaction(lastAdded.id);
                 setLastAdded(null);
               }}
             >
@@ -234,28 +264,38 @@ export default function Home() {
         )}
       </Card>
 
-      {/* Limite mensal */}
+      {/* Contas fixas do mês */}
       <Card>
         <View style={s.rowBetween}>
-          <Text style={s.cardTitle}>Limite do mês</Text>
-          <Pressable hitSlop={8} onPress={() => router.push({ pathname: '/budget', params: { categoryId: 'total' } })}>
-            <Text style={s.link}>{limit > 0 ? 'Ajustar' : 'Definir'}</Text>
+          <Text style={s.cardTitle}>Contas do mês</Text>
+          <Pressable hitSlop={8} onPress={() => router.push('/recurring')} testID="open-recurring">
+            <Text style={s.link}>{recurring.length ? 'Gerenciar' : 'Adicionar'}</Text>
           </Pressable>
         </View>
-        {limit > 0 ? (
+        {recurring.length === 0 && plan.installments === 0 ? (
+          <Text style={s.habitText}>Cadastre aluguel, internet e salário. Eles entram sozinhos no dia certo e deixam o número do dia mais preciso.</Text>
+        ) : (
           <>
             <Text style={s.limitText}>
-              <Text style={{ fontWeight: '800', color: statusColor }}>{formatBRL(summary.expense)}</Text> de {formatBRL(limit)}
+              Fixas <Text style={s.strong}>{formatBRL(plan.recurringExpense)}</Text> · Parcelas <Text style={s.strong}>{formatBRL(plan.installments)}</Text>
             </Text>
-            <ProgressBar value={summary.expense / limit} color={statusColor} height={10} />
-            <Text style={[s.allowance, { color: status === 'over' ? colors.expense : colors.textSoft }]}>
-              {status === 'over'
-                ? `Você passou ${formatBRL(summary.expense - limit)} do limite. Bora segurar até o fim do mês!`
-                : `Você pode gastar até ${formatBRL(allowance ?? 0)} por dia até o fim do mês.`}
-            </Text>
+            {pendingSoon.length > 0 ? (
+              pendingSoon.map((r) => (
+                <View key={r.id} style={s.pendingRow}>
+                  <IconBubble icon={getCategory(r.categoryId).icon} color={getCategory(r.categoryId).color} size={30} />
+                  <Text style={s.pendingName} numberOfLines={1}>
+                    {r.name}
+                  </Text>
+                  <Text style={s.pendingDay}>{dayLabel(dateInMonth(month, r.dayOfMonth))}</Text>
+                  <Text style={[s.pendingAmount, r.type === 'income' && { color: colors.income }]}>
+                    {r.type === 'income' ? '+' : '-'} {formatBRL(r.amount)}
+                  </Text>
+                </View>
+              ))
+            ) : (
+              <Text style={s.habitText}>Tudo que é fixo deste mês já foi lançado.</Text>
+            )}
           </>
-        ) : (
-          <Text style={s.habitText}>Defina quanto quer gastar por mês e veja quanto ainda pode gastar por dia.</Text>
         )}
       </Card>
 
@@ -334,8 +374,25 @@ const s = StyleSheet.create({
   streakPillText: { fontSize: 16, fontWeight: '800', color: colors.text, marginLeft: 4 },
   hero: { backgroundColor: colors.primaryDark, borderRadius: radius.xl, padding: space.xl, marginBottom: space.lg },
   heroLabel: { color: colors.primarySoft, fontSize: 14, fontWeight: '600' },
-  heroValue: { color: colors.white, fontSize: 36, fontWeight: '900', marginTop: 4, marginBottom: space.lg },
-  heroRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  heroValue: { color: colors.white, fontSize: 46, fontWeight: '900', marginTop: 2, letterSpacing: -1 },
+  heroSub: { color: colors.primarySoft, fontSize: 14, marginTop: 2 },
+  heroOver: { color: '#FFD48A', fontSize: 14, marginTop: 2, fontWeight: '600' },
+  heroSetup: { color: colors.white, fontSize: 16, lineHeight: 23, marginTop: space.sm, marginBottom: space.lg },
+  heroTrack: { height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.18)', marginTop: space.md, overflow: 'hidden' },
+  heroFill: { height: 6, borderRadius: 3, backgroundColor: colors.accent },
+  heroBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.white,
+    borderRadius: radius.pill,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    alignSelf: 'flex-start',
+  },
+  heroBtnWide: { alignSelf: 'stretch', justifyContent: 'center', marginTop: space.lg, paddingVertical: 13 },
+  heroBtnText: { color: colors.primaryDark, fontWeight: '800', fontSize: 14 },
+  heroRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: space.lg, gap: space.lg },
   heroItem: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   heroIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginRight: space.sm },
   heroSmall: { color: colors.primarySoft, fontSize: 12 },
@@ -391,6 +448,11 @@ const s = StyleSheet.create({
   weekDotActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   weekDotToday: { borderColor: colors.primary, borderWidth: 2, borderStyle: 'dashed' },
   weekLabel: { fontSize: 12, color: colors.textMuted, marginTop: 4, fontWeight: '600' },
+  strong: { fontWeight: '800', color: colors.text },
+  pendingRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, gap: space.sm },
+  pendingName: { flex: 1, fontSize: 14, fontWeight: '600', color: colors.text },
+  pendingDay: { fontSize: 12, color: colors.textSoft, textTransform: 'capitalize' },
+  pendingAmount: { fontSize: 14, fontWeight: '700', color: colors.text, minWidth: 90, textAlign: 'right' },
   limitText: { fontSize: 15, color: colors.textSoft, marginTop: space.sm, marginBottom: space.sm },
   allowance: { fontSize: 14, marginTop: space.sm, lineHeight: 20 },
   catName: { fontSize: 14, fontWeight: '600', color: colors.text, marginLeft: space.sm },

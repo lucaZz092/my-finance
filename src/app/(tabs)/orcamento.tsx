@@ -4,8 +4,9 @@ import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Card, IconBubble, MonthSwitcher, ProgressBar, Screen, SectionTitle, Title } from '../../components/ui';
 import { categoriesOf } from '../../lib/categories';
-import { currentMonth, todayKey } from '../../lib/dates';
-import { budgetStatus, dailyAllowance, expenseByCategory, savingsRate, summarize, txOfMonth } from '../../lib/finance';
+import { addMonths, currentMonth, monthShort, todayKey } from '../../lib/dates';
+import { budgetStatus, expenseByCategory, savingsRate, summarize, txOfMonth } from '../../lib/finance';
+import { committedByMonth, monthPlan } from '../../lib/planning';
 import { formatBRL } from '../../lib/money';
 import { colors, radius, space } from '../../lib/theme';
 import { useFinance } from '../../store/useFinance';
@@ -16,12 +17,17 @@ export default function Orcamento() {
   const transactions = useFinance((s) => s.transactions);
   const budgets = useFinance((s) => s.categoryBudgets);
   const limit = useFinance((s) => s.settings.monthlyLimit);
+  const recurring = useFinance((s) => s.recurring);
   const [month, setMonth] = useState(currentMonth());
 
   const monthTx = useMemo(() => txOfMonth(transactions, month), [transactions, month]);
   const summary = useMemo(() => summarize(monthTx), [monthTx]);
   const spentByCat = useMemo(() => new Map(expenseByCategory(monthTx).map((x) => [x.categoryId, x.total])), [monthTx]);
-  const allowance = dailyAllowance(limit, summary.expense, month, todayKey());
+  const plan = useMemo(() => monthPlan(transactions, recurring, limit, month, todayKey()), [transactions, recurring, limit, month]);
+  const allowance = plan.dailyBase;
+  const fixedPerMonth = recurring.filter((r) => r.active && r.type === 'expense').reduce((a, r) => a + r.amount, 0);
+  const upcoming = useMemo(() => committedByMonth(transactions, addMonths(currentMonth(), 1), 3), [transactions]);
+  const hasUpcoming = fixedPerMonth > 0 || upcoming.some((u) => u.total > 0);
   const totalStatus = budgetStatus(summary.expense, limit);
   const rate = savingsRate(summary);
 
@@ -81,6 +87,29 @@ export default function Orcamento() {
         </Card>
       )}
 
+      <Pressable onPress={() => router.push('/recurring')} testID="upcoming-card">
+        <Card>
+          <View style={s.rowBetween}>
+            <Text style={s.cardTitle}>Já comprometido nos próximos meses</Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.primary} />
+          </View>
+          {hasUpcoming ? (
+            upcoming.map((u) => (
+              <View key={u.month} style={[s.rowBetween, s.upRow]}>
+                <Text style={s.upMonth}>{monthShort(u.month)}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.upDetail}>Fixas {formatBRL(fixedPerMonth)}</Text>
+                  <Text style={s.upDetail}>Parcelas {formatBRL(u.total)}</Text>
+                </View>
+                <Text style={s.upTotal}>{formatBRL(fixedPerMonth + u.total)}</Text>
+              </View>
+            ))
+          ) : (
+            <Text style={s.hint}>Cadastre contas fixas e compras parceladas para ver quanto dos próximos meses já tem dono.</Text>
+          )}
+        </Card>
+      </Pressable>
+
       <SectionTitle>Limites por categoria</SectionTitle>
       {withBudget.length === 0 && (
         <Text style={[s.hint, { marginBottom: space.md }]}>
@@ -139,6 +168,10 @@ const s = StyleSheet.create({
   big: { fontSize: 26, fontWeight: '900' },
   of: { fontSize: 14, color: colors.textSoft },
   hint: { fontSize: 14, color: colors.textSoft, marginTop: space.sm, lineHeight: 20 },
+  upRow: { paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border, marginTop: 6 },
+  upMonth: { fontSize: 15, fontWeight: '800', color: colors.text, width: 70 },
+  upDetail: { fontSize: 13, color: colors.textSoft, lineHeight: 18 },
+  upTotal: { fontSize: 15, fontWeight: '800', color: colors.text },
   rateCard: { flexDirection: 'row', alignItems: 'center' },
   catRow: { flexDirection: 'row', alignItems: 'center' },
   catName: { fontSize: 15, fontWeight: '600', color: colors.text },

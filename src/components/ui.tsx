@@ -191,7 +191,11 @@ export function TransactionRow({ tx, onPress }: { tx: Transaction; onPress?: () 
         <Text style={styles.txTitle} numberOfLines={1}>
           {tx.note || cat.name}
         </Text>
-        <Text style={styles.txSub}>{cat.name}</Text>
+        <Text style={styles.txSub}>
+          {cat.name}
+          {tx.installment ? ` · parcela ${tx.installment.index}/${tx.installment.total}` : ''}
+          {tx.recurringId ? ' · fixa' : ''}
+        </Text>
       </View>
       <Text style={[styles.txAmount, { color: isIncome ? colors.income : colors.text }]}>
         {isIncome ? '+' : '-'} {formatBRL(tx.amount)}

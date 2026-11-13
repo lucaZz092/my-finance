@@ -8,7 +8,10 @@ MVP feito em React Native + Expo (SDK 58), TypeScript e Expo Router. Os dados fi
 | Tela | Funcionalidades |
 |---|---|
 | **Boas-vindas** | Nome, limite mensal de gastos e lembrete diário (4 passos). |
-| **Início** | Saldo do mês, **registro rápido em texto** (“almoço 32,50”, “uber 18 ontem”, “recebi salário 5.000”), botões de Despesa/Receita, **sequência de dias** (🔥) com a semana, botão “Hoje não gastei nada”, limite do mês com **quanto ainda dá para gastar por dia**, gastos por categoria, últimos lançamentos e dica do dia. |
+| **Início** | **"Hoje você pode gastar R$ X"**: o número do dia, já descontando contas fixas e parcelas; botão **Posso comprar?**; **registro rápido em texto** (também entende "tênis 600 em 6x"); (“almoço 32,50”, “uber 18 ontem”, “recebi salário 5.000”), botões de Despesa/Receita, **sequência de dias** (🔥) com a semana, botão “Hoje não gastei nada”, limite do mês com **quanto ainda dá para gastar por dia**, gastos por categoria, últimos lançamentos e dica do dia. |
+| **Contas fixas e renda** | Salário, aluguel, internet etc. entram sozinhos no extrato no dia certo; resumo da sobra para o dia a dia; compras parceladas em andamento. |
+| **Posso comprar?** | Digita o preço, escolhe à vista ou parcelado e vê se cabe no dia, no mês, e quanto o valor diário cai. Dá para registrar a compra ali mesmo. |
+| **Parcelas** | Despesa parcelada em até 12x pelo formulário (ou até 48x pelo texto); cria uma parcela por mês; excluir uma ou todas. |
 | **Extrato** | Navegação por mês, resumo (receitas/despesas/saldo), busca, filtro, lista agrupada por dia, editar e excluir. |
 | **Orçamento** | Limite mensal geral, limites por categoria (aviso em 80% e ao estourar), taxa de poupança com a regra 50-30-20 e sugestão pela sua média dos últimos meses. |
 | **Metas** | Metas com valor, ícone e prazo, valor a guardar por mês, guardar/retirar dinheiro. |
@@ -42,6 +45,12 @@ npx expo run:android --variant release
 ```
 
 **Para publicar na Play Store:** `npx eas-cli@latest build -p android --profile production` gera o `.aab`.
+
+## Versão 1.1 — o número do dia
+
+- Cálculo em `src/lib/planning.ts`: renda do mês (recebida + recorrentes por vir) − contas fixas − parcelas do mês = sobra para o dia a dia. Valor do dia = (sobra − gastos do dia a dia até ontem) ÷ dias que faltam. Se houver limite mensal, vale o menor.
+- Contas recorrentes são lançadas ao abrir o app e quando ele volta para a frente (`syncRecurring`), uma vez por mês cada.
+- Dados salvos na versão 2 (migração automática da versão 1, sem perder nada).
 
 ## Comandos úteis
 

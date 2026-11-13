@@ -11,6 +11,8 @@ export interface ParsedEntry {
   date: DateKey;
   /** 0 a 1: quão confiante o parser está na categoria. */
   confidence: number;
+  /** 1 = à vista; 2 ou mais = compra parcelada (amount é o valor total). */
+  installments: number;
 }
 
 /**
@@ -46,6 +48,26 @@ export function parseQuickEntry(text: string, today: DateKey): ParsedEntry {
     rest = rest.replace(/\bhoje\b/i, ' ');
   }
 
+  // Parcelas: "600 em 6x", "6x de 100", "em 10 vezes", "3 parcelas"
+  let installments = 1;
+  let perInstallment: Cents | null = null;
+  const perMatch = rest.match(/(^|\s)(\d{1,2})\s*(?:x|vezes)\s+de\s+((?:R\$\s*)?\d[\d.,]*)/i);
+  if (perMatch) {
+    installments = Number(perMatch[2]);
+    perInstallment = parseAmount(perMatch[3]);
+    rest = rest.replace(perMatch[0], ' ');
+  } else {
+    const instMatch = rest.match(/(^|\s)(?:em\s+)?(\d{1,2})\s*(?:x|vezes|parcelas)(?=\s|$|[.,!])/i);
+    if (instMatch) {
+      installments = Number(instMatch[2]);
+      rest = rest.replace(instMatch[0], ' ');
+    }
+  }
+  if (!(installments >= 2 && installments <= 48)) {
+    installments = 1;
+    perInstallment = null;
+  }
+
   // Sinal explícito: "+200 freela" = receita
   let type: TxType | null = null;
   const signMatch = rest.match(/(^|\s)([+-])\s*(?=R?\$?\s*\d)/);
@@ -55,8 +77,8 @@ export function parseQuickEntry(text: string, today: DateKey): ParsedEntry {
   }
 
   // Valor: primeiro número do texto
-  let amount: Cents | null = null;
-  const numMatch = rest.match(/(R\$\s*)?\d[\d.,]*/i);
+  let amount: Cents | null = perInstallment !== null ? perInstallment * installments : null;
+  const numMatch = amount === null ? rest.match(/(R\$\s*)?\d[\d.,]*/i) : null;
   if (numMatch) {
     amount = parseAmount(numMatch[0]);
     rest = rest.replace(numMatch[0], ' ');
@@ -81,7 +103,8 @@ export function parseQuickEntry(text: string, today: DateKey): ParsedEntry {
 
   const note = noteRaw
     .replace(/^(gastei|paguei|comprei|recebi|ganhei)\s+(com|no|na|em|de)?\s*/i, '')
-    .replace(/^(com|no|na|em|de)\s+/i, '');
+    .replace(/^(com|no|na|em|de)\s+/i, '')
+    .replace(/\s+(em|de|no|na|com)$/i, '');
 
   return {
     amount,
@@ -90,6 +113,7 @@ export function parseQuickEntry(text: string, today: DateKey): ParsedEntry {
     note: note ? note.charAt(0).toUpperCase() + note.slice(1) : '',
     date,
     confidence: best ? 0.8 : 0.3,
+    installments: type === 'expense' ? installments : 1,
   };
 }
 
