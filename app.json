@@ -3,7 +3,7 @@
     "name": "My Finance",
     "slug": "my-finance",
     "scheme": "myfinance",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -15,7 +15,7 @@
     },
     "android": {
       "package": "com.softsolutions.myfinance",
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "backgroundColor": "#1B9E5A",
         "foregroundImage": "./assets/android-icon-foreground.png",

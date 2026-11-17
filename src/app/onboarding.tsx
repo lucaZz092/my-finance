@@ -57,11 +57,11 @@ export default function Onboarding() {
               <Ionicons name="leaf" size={46} color={colors.white} />
             </View>
             <Text style={s.brand}>My Finance</Text>
-            <Text style={s.headline}>Uma vida financeira saudável começa com um hábito simples.</Text>
-            <Benefit icon="flash" text="Registre um gasto em segundos, do jeito que você fala: “almoço 32,50”." />
-            <Benefit icon="flame" text="Crie sequência de dias cuidando do seu dinheiro." />
-            <Benefit icon="pie-chart" text="Saiba todo dia quanto ainda pode gastar, já descontando contas e parcelas." />
-            <Benefit icon="flag" text="Junte dinheiro para seus objetivos com metas." />
+            <Text style={s.headline}>O app que te diz quanto você pode gastar hoje.</Text>
+            <Benefit icon="pie-chart" text="Um número por dia, já descontando contas fixas e parcelas." />
+            <Benefit icon="flash" text="Registre um gasto em segundos: escreva “almoço 32,50”." />
+            <Benefit icon="help-circle" text="Pergunte “posso comprar?” antes de gastar." />
+            <Benefit icon="lock-closed" text="Sem cadastro e sem conectar banco: seus dados ficam no celular." />
           </View>
         )}
 
@@ -88,7 +88,7 @@ export default function Onboarding() {
           <View style={s.body}>
             <Text style={s.stepTitle}>Quanto você recebe por mês?</Text>
             <Text style={s.stepText}>
-              Com a sua renda, o app calcula quanto você pode gastar por dia. Contas fixas como aluguel você adiciona depois.
+              O app usa a sua renda para calcular quanto dá para gastar por dia até o próximo recebimento. Contas fixas como aluguel você adiciona depois.
             </Text>
             <View style={s.amountBox}>
               <AmountInput value={salary} onChange={setSalary} color={colors.primaryDark} testID="salary-input" />

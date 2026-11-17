@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
-import type { ComponentProps, ReactNode } from 'react';
+import { useState, type ComponentProps, type ReactNode } from 'react';
 import {
   ActivityIndicator,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -52,6 +53,62 @@ export function Card({ children, style }: { children: ReactNode; style?: StylePr
 
 export function Title({ children, style }: { children: ReactNode; style?: StyleProp<TextStyle> }) {
   return <Text style={[styles.title, style]}>{children}</Text>;
+}
+
+export interface ScreenHelp {
+  intro: string;
+  items: { icon: IconName; text: string }[];
+}
+
+/** Folha de ajuda: explica a tela em poucas linhas. */
+export function HelpSheet({ visible, onClose, title, help }: { visible: boolean; onClose: () => void; title: string; help: ScreenHelp }) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.helpOverlay} onPress={onClose} accessibilityLabel="Fechar ajuda">
+        <Pressable style={styles.helpSheet} onPress={() => {}} testID="help-sheet">
+          <Text style={styles.helpTitle}>{title}</Text>
+          <Text style={styles.helpIntro}>{help.intro}</Text>
+          {help.items.map((it) => (
+            <View key={it.text} style={styles.helpItem}>
+              <View style={styles.helpIcon}>
+                <Ionicons name={it.icon} size={18} color={colors.primary} />
+              </View>
+              <Text style={styles.helpText}>{it.text}</Text>
+            </View>
+          ))}
+          <Button label="Entendi" onPress={onClose} style={{ marginTop: space.md }} testID="help-close" />
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+/** Título de tela com uma linha que diz para que ela serve e um botão de ajuda. */
+export function ScreenTitle({ title, subtitle, help }: { title: string; subtitle?: string; help?: ScreenHelp }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={styles.screenTitle}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.screenTitleText} accessibilityRole="header">
+          {title}
+        </Text>
+        {subtitle ? <Text style={styles.screenSubtitle}>{subtitle}</Text> : null}
+      </View>
+      {help && (
+        <Pressable
+          testID="screen-help"
+          hitSlop={10}
+          onPress={() => setOpen(true)}
+          style={styles.helpBtn}
+          accessibilityRole="button"
+          accessibilityLabel={`Ajuda sobre ${title}`}
+        >
+          <Ionicons name="help" size={20} color={colors.primaryDark} />
+        </Pressable>
+      )}
+      {help && <HelpSheet visible={open} onClose={() => setOpen(false)} title={title} help={help} />}
+    </View>
+  );
 }
 
 export function SectionTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
@@ -269,6 +326,17 @@ export const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   card: { backgroundColor: colors.card, borderRadius: radius.lg, padding: space.lg, marginBottom: space.lg, ...shadow },
   title: { fontSize: 26, fontWeight: '800', color: colors.text, marginBottom: space.lg },
+  screenTitle: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: space.lg, gap: space.md },
+  screenTitleText: { fontSize: 26, fontWeight: '800', color: colors.text },
+  screenSubtitle: { fontSize: 14, color: colors.textSoft, marginTop: 2, lineHeight: 20 },
+  helpBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primaryLight, alignItems: 'center', justifyContent: 'center' },
+  helpOverlay: { flex: 1, backgroundColor: 'rgba(10,32,22,0.55)', justifyContent: 'flex-end' },
+  helpSheet: { backgroundColor: colors.card, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: space.xl, paddingBottom: space.xxl },
+  helpTitle: { fontSize: 22, fontWeight: '800', color: colors.text },
+  helpIntro: { fontSize: 15, color: colors.textSoft, lineHeight: 22, marginTop: 6, marginBottom: space.lg },
+  helpItem: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md, marginBottom: space.md },
+  helpIcon: { width: 34, height: 34, borderRadius: 11, backgroundColor: colors.primaryLight, alignItems: 'center', justifyContent: 'center' },
+  helpText: { flex: 1, fontSize: 15, color: colors.text, lineHeight: 21, paddingTop: 6 },
   sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.md, marginTop: space.sm },
   sectionTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
   button: {

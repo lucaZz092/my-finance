@@ -19,6 +19,8 @@ export interface Transaction {
   createdAt: number;
   /** Preenchido quando o lançamento veio de uma conta fixa ou renda recorrente. */
   recurringId?: string;
+  /** Mês da ocorrência que este lançamento representa. Evita lançar duas vezes mesmo se a data for editada. */
+  recurringMonth?: MonthKey;
   /** Preenchido quando é uma parcela de uma compra parcelada. */
   installment?: InstallmentInfo;
 }
@@ -43,6 +45,10 @@ export interface RecurringItem {
   dayOfMonth: number;
   active: boolean;
   createdAt: number;
+  /** Primeiro mês em que a recorrente vale. Meses anteriores nunca são lançados. */
+  startMonth?: MonthKey;
+  /** Meses que o usuário pulou (excluiu o lançamento automático). */
+  skipped?: MonthKey[];
 }
 
 export interface Category {
@@ -73,4 +79,8 @@ export interface Settings {
   reminderEnabled: boolean;
   reminderHour: number;
   reminderMinute: number;
+  /** O usuário dispensou o cartão de primeiros passos. */
+  guideDismissed?: boolean;
+  /** O usuário já abriu o "Posso comprar?". */
+  triedCanBuy?: boolean;
 }

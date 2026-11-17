@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Card, IconBubble, MonthSwitcher, ProgressBar, Screen, SectionTitle, Title } from '../../components/ui';
+import { Card, IconBubble, MonthSwitcher, ProgressBar, Screen, SectionTitle, ScreenTitle } from '../../components/ui';
 import { categoriesOf } from '../../lib/categories';
 import { addMonths, currentMonth, monthShort, todayKey } from '../../lib/dates';
 import { budgetStatus, expenseByCategory, savingsRate, summarize, txOfMonth } from '../../lib/finance';
@@ -41,7 +41,19 @@ export default function Orcamento() {
 
   return (
     <Screen>
-      <Title>Orçamento</Title>
+      <ScreenTitle
+        title="Orçamento"
+        subtitle="Seus limites e o que já está comprometido."
+        help={{
+          intro: 'O orçamento mostra se os gastos do mês estão dentro do que você planejou.',
+          items: [
+            { icon: 'speedometer-outline', text: 'O limite mensal é o máximo que você quer gastar no mês, somando tudo.' },
+            { icon: 'pricetags-outline', text: 'Limites por categoria avisam quando você chega a 80% e quando passa.' },
+            { icon: 'calendar-outline', text: '“Já comprometido” soma as contas fixas e as parcelas dos próximos meses.' },
+            { icon: 'trending-up', text: 'A taxa de poupança mostra quanto da renda sobrou no mês.' },
+          ],
+        }}
+      />
       <MonthSwitcher month={month} onChange={setMonth} />
 
       <Pressable onPress={() => edit('total')} testID="edit-total">
@@ -61,7 +73,7 @@ export default function Orcamento() {
                 {totalStatus === 'over'
                   ? `Limite estourado em ${formatBRL(summary.expense - limit)}.`
                   : allowance !== null
-                    ? `Restam ${formatBRL(limit - summary.expense)} — cerca de ${formatBRL(allowance)} por dia.`
+                    ? `Restam ${formatBRL(limit - summary.expense)} do limite neste mês.`
                     : `Sobraram ${formatBRL(limit - summary.expense)} do limite neste mês.`}
               </Text>
             </>

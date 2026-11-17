@@ -36,7 +36,7 @@ export default function TabsLayout() {
         },
       }}
     >
-      <Tabs.Screen name="index" options={tab('Início', 'home-outline', 'home')} />
+      <Tabs.Screen name="index" options={tab('Hoje', 'today-outline', 'today')} />
       <Tabs.Screen name="extrato" options={tab('Extrato', 'list-outline', 'list')} />
       <Tabs.Screen name="orcamento" options={tab('Orçamento', 'pie-chart-outline', 'pie-chart')} />
       <Tabs.Screen name="metas" options={tab('Metas', 'flag-outline', 'flag')} />

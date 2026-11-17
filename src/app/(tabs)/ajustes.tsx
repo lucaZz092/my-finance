@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, Share, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
-import { Card, Chip, type IconName, Screen, SectionTitle, Title } from '../../components/ui';
+import { Card, Chip, type IconName, Screen, SectionTitle, ScreenTitle } from '../../components/ui';
 import { getCategory } from '../../lib/categories';
 import { todayKey } from '../../lib/dates';
 import { activeDays, bestStreak, toCSV } from '../../lib/finance';
@@ -68,7 +68,19 @@ export default function Ajustes() {
 
   return (
     <Screen>
-      <Title>Ajustes</Title>
+      <ScreenTitle
+        title="Ajustes"
+        subtitle="Seu nome, lembrete e seus dados."
+        help={{
+          intro: 'Aqui você muda como o app funciona para você.',
+          items: [
+            { icon: 'repeat', text: 'Em “Contas fixas e renda” ficam seu salário e as contas que se repetem todo mês.' },
+            { icon: 'notifications-outline', text: 'O lembrete diário avisa no horário que você escolher para registrar os gastos.' },
+            { icon: 'share-outline', text: 'Exportar gera uma lista dos lançamentos que abre em planilhas.' },
+            { icon: 'lock-closed-outline', text: 'Seus dados ficam só neste aparelho. Ninguém mais tem acesso.' },
+          ],
+        }}
+      />
 
       <View style={s.stats}>
         <Stat icon="receipt" value={String(transactions.length)} label="lançamentos" />

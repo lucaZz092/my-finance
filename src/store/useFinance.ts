@@ -2,9 +2,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { todayKey } from '../lib/dates';
+import { addMonths, dateInMonth, monthOf, toDateKey, todayKey } from '../lib/dates';
 import { buildInstallments, dueRecurring } from '../lib/planning';
-import type { Cents, DateKey, Goal, RecurringItem, Settings, Transaction } from '../lib/types';
+import type { Cents, DateKey, Goal, MonthKey, RecurringItem, Settings, Transaction } from '../lib/types';
 
 const uid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
@@ -70,7 +70,20 @@ export const useFinance = create<FinanceState>()(
       },
       updateTransaction: (id, patch) =>
         set((s) => ({ transactions: s.transactions.map((t) => (t.id === id ? { ...t, ...patch } : t)) })),
-      removeTransaction: (id) => set((s) => ({ transactions: s.transactions.filter((t) => t.id !== id) })),
+      removeTransaction: (id) =>
+        set((s) => {
+          const tx = s.transactions.find((t) => t.id === id);
+          const transactions = s.transactions.filter((t) => t.id !== id);
+          if (!tx?.recurringId) return { transactions };
+          // Lançamento automático excluído: pula este mês, para ele não voltar ao reabrir o app
+          const month: MonthKey = tx.recurringMonth ?? monthOf(tx.date);
+          return {
+            transactions,
+            recurring: s.recurring.map((r) =>
+              r.id === tx.recurringId && !(r.skipped ?? []).includes(month) ? { ...r, skipped: [...(r.skipped ?? []), month] } : r,
+            ),
+          };
+        }),
       addInstallmentPurchase: (p, n) => {
         const groupId = uid();
         const now = Date.now();
@@ -82,11 +95,24 @@ export const useFinance = create<FinanceState>()(
         set((s) => ({ transactions: s.transactions.filter((t) => t.installment?.groupId !== groupId) })),
 
       addRecurring: (r) => {
-        const item: RecurringItem = { ...r, id: uid(), createdAt: Date.now() };
+        const today = todayKey();
+        const month = monthOf(today);
+        // Renda cujo dia ainda não chegou neste mês: começa no mês passado, para o último
+        // recebimento entrar no extrato e abrir o período atual. Contas começam neste mês.
+        const startMonth = r.startMonth ?? (r.type === 'income' && dateInMonth(month, r.dayOfMonth) > today ? addMonths(month, -1) : month);
+        const item: RecurringItem = { ...r, startMonth, id: uid(), createdAt: Date.now() };
         set((s) => ({ recurring: [...s.recurring, item] }));
         return item;
       },
-      updateRecurring: (id, patch) => set((s) => ({ recurring: s.recurring.map((r) => (r.id === id ? { ...r, ...patch } : r)) })),
+      updateRecurring: (id, patch) =>
+        set((s) => ({
+          recurring: s.recurring.map((r) => {
+            if (r.id !== id) return r;
+            // Reativada depois de pausada: volta a valer a partir deste mês, sem lançar os meses da pausa
+            const resumed = patch.active === true && !r.active;
+            return { ...r, ...patch, ...(resumed ? { startMonth: monthOf(todayKey()) } : {}) };
+          }),
+        })),
       removeRecurring: (id) => set((s) => ({ recurring: s.recurring.filter((r) => r.id !== id) })),
       syncRecurring: (today = todayKey()) => {
         let created = 0;
@@ -127,9 +153,18 @@ export const useFinance = create<FinanceState>()(
     }),
     {
       name: 'my-finance-v1',
-      version: 2,
-      // v1 -> v2: chegam as contas recorrentes; os dados antigos continuam iguais
-      migrate: (persisted) => ({ recurring: [], ...(persisted as object) }) as Partial<FinanceState>,
+      version: 3,
+      // v1 -> v2: chegam as contas recorrentes. v2 -> v3: cada recorrente ganha o mês em que começou.
+      // Os dados antigos continuam iguais.
+      migrate: (persisted) => {
+        const p = { recurring: [], ...(persisted as object) } as Partial<FinanceState>;
+        p.recurring = (p.recurring ?? []).map((r) => ({
+          ...r,
+          startMonth: r.startMonth ?? monthOf(toDateKey(new Date(r.createdAt))),
+          skipped: r.skipped ?? [],
+        }));
+        return p;
+      },
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (s) => ({
         transactions: s.transactions,

@@ -6,9 +6,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { closeModal, ModalHeader } from '../components/ModalHeader';
 import { AmountInput, Button, Chip, type IconName } from '../components/ui';
 import { categoriesOf } from '../lib/categories';
-import { currentMonth, monthShort, todayKey } from '../lib/dates';
+import { monthShort, shortDate, todayKey } from '../lib/dates';
 import { formatBRL } from '../lib/money';
-import { canIBuy, monthPlan } from '../lib/planning';
+import { canIBuy, cyclePlan } from '../lib/planning';
 import { tap } from '../lib/platform';
 import { colors, radius, space } from '../lib/theme';
 import { useFinance } from '../store/useFinance';
@@ -35,7 +35,7 @@ export default function CanBuyScreen() {
   const [note, setNote] = useState('');
   const [categoryId, setCategoryId] = useState('shopping');
 
-  const plan = useMemo(() => monthPlan(transactions, recurring, monthlyLimit, currentMonth(), today), [transactions, recurring, monthlyLimit, today]);
+  const plan = useMemo(() => cyclePlan(transactions, recurring, monthlyLimit, today), [transactions, recurring, monthlyLimit, today]);
   const result = useMemo(() => canIBuy(plan, price, n, today), [plan, price, n, today]);
   const v = result.verdict === 'unknown' ? null : VERDICT[result.verdict];
 
@@ -52,6 +52,7 @@ export default function CanBuyScreen() {
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ModalHeader title="Posso comprar?" />
       <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: space.xl }} keyboardShouldPersistTaps="handled">
+        <Text style={s.lead}>Veja se uma compra cabe no seu dia antes de gastar.</Text>
         <View style={s.amountCard}>
           <Text style={s.label}>Quanto custa?</Text>
           <AmountInput value={price} onChange={setPrice} color={colors.text} autoFocus testID="buy-price" />
@@ -89,14 +90,16 @@ export default function CanBuyScreen() {
             </View>
             {result.verdict === 'no' ? (
               <Text style={s.resultText}>
-                {n > 1 ? `A 1ª parcela de ${formatBRL(result.thisMonth)}` : 'A compra'} passa {formatBRL(result.over)} do que sobra para o mês.
+                {n > 1 ? `A 1ª parcela de ${formatBRL(result.thisMonth)}` : 'A compra'} passa {formatBRL(result.over)} do que sobra{' '}
+                {plan.mode === 'payday' ? 'até o próximo recebimento' : 'para o mês'}.
                 {n === 1 ? ' Parcelar ou esperar o próximo mês pode ajudar.' : ''}
               </Text>
             ) : (
               <Text style={s.resultText}>
                 Seu valor por dia vai de <Text style={s.bold}>{formatBRL(result.dailyBefore ?? 0)}</Text> para{' '}
-                <Text style={s.bold}>{formatBRL(result.dailyAfter ?? 0)}</Text> até o fim do mês ({plan.daysLeft}{' '}
-                {plan.daysLeft === 1 ? 'dia' : 'dias'}).
+                <Text style={s.bold}>{formatBRL(result.dailyAfter ?? 0)}</Text> pelos próximos {plan.daysLeft}{' '}
+                {plan.daysLeft === 1 ? 'dia' : 'dias'}
+                {plan.mode === 'payday' ? `, até ${shortDate(plan.end)}` : ' deste mês'}.
               </Text>
             )}
             {result.future.length > 0 && (
@@ -138,6 +141,7 @@ export default function CanBuyScreen() {
 }
 
 const s = StyleSheet.create({
+  lead: { fontSize: 15, color: colors.textSoft, lineHeight: 21, marginBottom: space.lg },
   amountCard: { backgroundColor: colors.card, borderRadius: radius.lg, paddingVertical: space.xl, paddingHorizontal: space.lg, marginBottom: space.lg, alignItems: 'center' },
   noteInput: {
     marginTop: space.lg,

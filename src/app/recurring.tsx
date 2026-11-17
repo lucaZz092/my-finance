@@ -8,7 +8,7 @@ import { Card, Chip, IconBubble, SectionTitle } from '../components/ui';
 import { getCategory } from '../lib/categories';
 import { currentMonth, dateInMonth, monthShort, monthOf, todayKey } from '../lib/dates';
 import { formatBRL } from '../lib/money';
-import { activeInstallmentGroups, isPosted, monthPlan } from '../lib/planning';
+import { activeInstallmentGroups, cyclePlan, isPosted } from '../lib/planning';
 import { colors, radius, space } from '../lib/theme';
 import type { RecurringItem, TxType } from '../lib/types';
 import { useFinance } from '../store/useFinance';
@@ -34,7 +34,7 @@ export default function RecurringScreen() {
   const today = todayKey();
   const month = currentMonth();
 
-  const plan = useMemo(() => monthPlan(transactions, recurring, monthlyLimit, month, today), [transactions, recurring, monthlyLimit, month, today]);
+  const plan = useMemo(() => cyclePlan(transactions, recurring, monthlyLimit, today), [transactions, recurring, monthlyLimit, today]);
   const groups = useMemo(() => activeInstallmentGroups(transactions, today), [transactions, today]);
   const incomes = recurring.filter((r) => r.type === 'income').sort((a, b) => a.dayOfMonth - b.dayOfMonth);
   const expenses = recurring.filter((r) => r.type === 'expense').sort((a, b) => a.dayOfMonth - b.dayOfMonth);
@@ -78,8 +78,11 @@ export default function RecurringScreen() {
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScreenHeader title="Contas fixas e renda" />
       <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: insets.bottom + 48 }}>
+        <Text style={s.lead}>
+          O que se repete todo mês. O app lança sozinho no dia certo e reserva esses valores antes de calcular quanto você pode gastar por dia.
+        </Text>
         <View style={s.summary}>
-          <Text style={s.summaryLabel}>Neste mês ({monthShort(month)})</Text>
+          <Text style={s.summaryLabel}>{plan.mode === 'payday' ? 'Até o próximo recebimento' : `Neste mês (${monthShort(month)})`}</Text>
           <View style={s.sumRow}>
             <Text style={s.sumKey}>Renda prevista</Text>
             <Text style={s.sumVal}>{formatBRL(plan.income)}</Text>
@@ -180,6 +183,7 @@ export default function RecurringScreen() {
 }
 
 const s = StyleSheet.create({
+  lead: { fontSize: 15, color: colors.textSoft, lineHeight: 21, marginBottom: space.lg },
   summary: { backgroundColor: colors.primaryDark, borderRadius: radius.xl, padding: space.xl, marginBottom: space.lg, gap: 8 },
   summaryLabel: { color: colors.primarySoft, fontSize: 14, fontWeight: '600', marginBottom: 4 },
   sumRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

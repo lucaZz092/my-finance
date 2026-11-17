@@ -46,6 +46,21 @@ npx expo run:android --variant release
 
 **Para publicar na Play Store:** `npx eas-cli@latest build -p android --profile production` gera o `.aab`.
 
+## Versão 1.2 — até o próximo recebimento
+
+- O número do dia passa a contar **do último recebimento até a véspera do próximo** (`cyclePlan` em `src/lib/planning.ts`), e não até o fim do mês. Sem renda cadastrada, usa o mês do calendário.
+- Só conta dinheiro que já entrou: renda futura não infla o valor do dia.
+- Contas fixas e parcelas que vencem antes do próximo recebimento ficam reservadas, mesmo as do começo do mês seguinte.
+- Contas fixas: cada ocorrência (recorrente + mês) é lançada no máximo uma vez; meses em que o app não foi aberto são lançados ao abrir (até 12 meses); excluir um lançamento automático marca o mês como pulado e ele não volta.
+- Tela **Como calculamos** mostra, com os números do usuário, de onde vem o valor do dia.
+- Dados salvos na versão 3 (migração automática das versões 1 e 2, sem perder nada).
+
+### Uso (UX)
+
+- Cada aba tem subtítulo e botão de ajuda explicando para que serve.
+- Cartão **Primeiros passos** na tela inicial, com o que falta configurar.
+- Exemplos tocáveis no registro rápido.
+
 ## Versão 1.1 — o número do dia
 
 - Cálculo em `src/lib/planning.ts`: renda do mês (recebida + recorrentes por vir) − contas fixas − parcelas do mês = sobra para o dia a dia. Valor do dia = (sobra − gastos do dia a dia até ontem) ÷ dias que faltam. Se houver limite mensal, vale o menor.

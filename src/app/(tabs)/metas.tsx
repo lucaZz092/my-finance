@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Fab } from '../../components/Fab';
-import { AmountInput, Button, Card, EmptyState, IconBubble, ProgressBar, Screen, Title } from '../../components/ui';
+import { AmountInput, Button, Card, EmptyState, IconBubble, ProgressBar, Screen, ScreenTitle } from '../../components/ui';
 import { shortDate, todayKey } from '../../lib/dates';
 import { goalProgress, monthlyToReachGoal } from '../../lib/finance';
 import { formatBRL } from '../../lib/money';
@@ -20,7 +20,18 @@ export default function Metas() {
   return (
     <View style={{ flex: 1 }}>
       <Screen>
-        <Title>Metas</Title>
+        <ScreenTitle
+          title="Metas"
+          subtitle="Junte dinheiro para o que importa para você."
+          help={{
+            intro: 'Uma meta é um valor que você quer juntar, com ou sem prazo.',
+            items: [
+              { icon: 'add-circle-outline', text: 'Crie a meta com nome, valor e prazo. O app mostra quanto guardar por mês.' },
+              { icon: 'wallet-outline', text: 'Toque em “Guardar” sempre que separar um dinheiro para ela.' },
+              { icon: 'information-circle-outline', text: 'Guardar na meta só registra o progresso. O dinheiro continua na sua conta do banco.' },
+            ],
+          }}
+        />
         {goals.length === 0 ? (
           <EmptyState
             icon="flag-outline"

@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { Fab } from '../../components/Fab';
-import { Button, Card, Chip, EmptyState, MonthSwitcher, Screen, Title, TransactionRow } from '../../components/ui';
+import { Button, Card, Chip, EmptyState, MonthSwitcher, Screen, ScreenTitle, TransactionRow } from '../../components/ui';
 import { getCategory } from '../../lib/categories';
 import { currentMonth, dayLabel } from '../../lib/dates';
 import { groupByDay, summarize, txOfMonth } from '../../lib/finance';
@@ -33,7 +33,19 @@ export default function Extrato() {
   return (
     <View style={{ flex: 1 }}>
       <Screen>
-        <Title>Extrato</Title>
+        <ScreenTitle
+          title="Extrato"
+          subtitle="Tudo que entrou e saiu, dia a dia."
+          help={{
+            intro: 'Aqui fica a lista de todos os seus lançamentos do mês.',
+            items: [
+              { icon: 'chevron-forward', text: 'Use as setas para ver outros meses.' },
+              { icon: 'search', text: 'Busque pelo nome ou pela categoria, ou filtre só despesas ou receitas.' },
+              { icon: 'create-outline', text: 'Toque em um lançamento para corrigir o valor, a data ou excluir.' },
+              { icon: 'repeat', text: '“Fixa” é uma conta lançada sozinha. “Parcela 2/6” é parte de uma compra parcelada.' },
+            ],
+          }}
+        />
         <MonthSwitcher month={month} onChange={setMonth} maxMonth={currentMonth()} />
 
         <View style={s.summary}>

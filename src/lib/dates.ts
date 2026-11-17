@@ -22,6 +22,11 @@ export function addDays(key: DateKey, days: number): DateKey {
   return toDateKey(d);
 }
 
+/** Dias de `a` até `b` (b - a). */
+export function diffDays(a: DateKey, b: DateKey): number {
+  return Math.round((fromDateKey(b).getTime() - fromDateKey(a).getTime()) / 86_400_000);
+}
+
 export function monthOf(key: DateKey): MonthKey {
   return key.slice(0, 7);
 }
@@ -50,6 +55,11 @@ export function dateInMonth(month: MonthKey, day: number): DateKey {
 /** Mesma data N meses depois, ajustando o dia para o fim do mês quando preciso. */
 export function addMonthsToDate(key: DateKey, delta: number): DateKey {
   return dateInMonth(addMonths(monthOf(key), delta), Number(key.slice(8, 10)));
+}
+
+/** "04/12" */
+export function dayMonth(key: DateKey): string {
+  return `${key.slice(8, 10)}/${key.slice(5, 7)}`;
 }
 
 /** "nov/26" */

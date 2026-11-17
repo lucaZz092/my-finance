@@ -51,6 +51,7 @@ export default function RootLayout() {
         <Stack.Screen name="recurring" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="recurring-edit" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="can-buy" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="how" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
       </Stack>
     </SafeAreaProvider>
   );

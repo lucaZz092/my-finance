@@ -139,6 +139,7 @@ export default function TransactionScreen() {
         {canSplit && (
           <>
             <Text style={s.label}>Pagamento</Text>
+            <Text style={s.helpLine}>Parcelado? O app cria uma parcela por mês e já reserva cada uma.</Text>
             <View style={[s.chips, { marginBottom: space.md }]}>
               {INSTALLMENT_OPTIONS.map((opt) => (
                 <Chip key={opt} label={opt === 1 ? 'À vista' : `${opt}x`} selected={installments === opt} onPress={() => setInstallments(opt)} />
@@ -204,6 +205,7 @@ export default function TransactionScreen() {
 }
 
 const s = StyleSheet.create({
+  helpLine: { fontSize: 13, color: colors.textSoft, marginTop: -4, marginBottom: space.sm, lineHeight: 18 },
   info: {
     flexDirection: 'row',
     gap: space.sm,

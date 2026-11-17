@@ -2,11 +2,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Button, Card, IconBubble, ProgressBar, Screen, SectionTitle, TransactionRow } from '../../components/ui';
+import { FirstSteps, type Step } from '../../components/FirstSteps';
+import { Button, Card, HelpSheet, IconBubble, ProgressBar, Screen, SectionTitle, TransactionRow } from '../../components/ui';
 import { getCategory } from '../../lib/categories';
-import { currentMonth, dateInMonth, dayLabel, greeting, monthLabel, todayKey, weekdayInitial } from '../../lib/dates';
+import { currentMonth, dayLabel, greeting, monthLabel, shortDate, todayKey, weekdayInitial } from '../../lib/dates';
 import { activeDays, bestStreak, currentStreak, expenseByCategory, lastNDays, summarize, txOfMonth } from '../../lib/finance';
-import { monthPlan } from '../../lib/planning';
+import { cyclePlan } from '../../lib/planning';
 import { formatBRL } from '../../lib/money';
 import { tap } from '../../lib/platform';
 import { ruleBasedParser } from '../../lib/quickEntry';
@@ -25,11 +26,13 @@ export default function Home() {
   const removeInstallmentGroup = useFinance((s) => s.removeInstallmentGroup);
   const recurring = useFinance((s) => s.recurring);
   const checkIn = useFinance((s) => s.checkIn);
+  const updateSettings = useFinance((s) => s.updateSettings);
 
   const today = todayKey();
   const month = currentMonth();
   const [quick, setQuick] = useState('');
   const [lastAdded, setLastAdded] = useState<Transaction | null>(null);
+  const [showHabitHelp, setShowHabitHelp] = useState(false);
 
   const monthTx = useMemo(() => txOfMonth(transactions, month), [transactions, month]);
   const summary = useMemo(() => summarize(monthTx), [monthTx]);
@@ -49,11 +52,28 @@ export default function Home() {
   );
 
   const plan = useMemo(
-    () => monthPlan(transactions, recurring, settings.monthlyLimit, month, today),
-    [transactions, recurring, settings.monthlyLimit, month, today],
+    () => cyclePlan(transactions, recurring, settings.monthlyLimit, today),
+    [transactions, recurring, settings.monthlyLimit, today],
   );
-  const pendingSoon = [...plan.pending].sort((a, b) => a.dayOfMonth - b.dayOfMonth).slice(0, 3);
   const over = plan.todayLeft !== null && plan.todayLeft < 0;
+  // Contas e parcelas deste período que ainda não aconteceram
+  const upcoming = useMemo(
+    () => [...plan.fixedLines, ...plan.installmentLines].filter((l) => l.pending).slice(0, 3),
+    [plan.fixedLines, plan.installmentLines],
+  );
+  const hasIncome = recurring.some((r) => r.type === 'income' && r.active);
+  const steps: Step[] = [
+    { id: 'income', label: 'Informar sua renda', hint: 'Salário, pagamento ou o que você recebe por mês', done: hasIncome, to: '/recurring' },
+    {
+      id: 'bills',
+      label: 'Cadastrar suas contas fixas',
+      hint: 'Aluguel, internet, academia: elas entram sozinhas no dia certo',
+      done: recurring.some((r) => r.type === 'expense'),
+      to: '/recurring',
+    },
+    { id: 'expense', label: 'Registrar seu primeiro gasto', hint: 'Escreva “almoço 32,50” no campo acima', done: transactions.some((t) => !t.recurringId), to: '/transaction' },
+    { id: 'buy', label: 'Experimentar o “Posso comprar?”', hint: 'Veja se uma compra cabe antes de gastar', done: !!settings.triedCanBuy, to: '/can-buy' },
+  ];
 
   const submitQuick = async () => {
     const text = quick.trim();
@@ -91,11 +111,31 @@ export default function Home() {
           </Text>
           <Text style={s.sub}>{monthLabel(month)}</Text>
         </View>
-        <View style={s.streakPill} accessibilityLabel={`Sequência de ${streak} dias`}>
+        <Pressable
+          style={s.streakPill}
+          onPress={() => setShowHabitHelp(true)}
+          accessibilityRole="button"
+          accessibilityLabel={`Sequência de ${streak} dias. Toque para entender`}
+          testID="streak-pill"
+        >
           <Ionicons name="flame" size={18} color={streak > 0 ? '#FF7A00' : colors.textMuted} />
           <Text style={s.streakPillText}>{streak}</Text>
-        </View>
+        </Pressable>
       </View>
+
+      <HelpSheet
+        visible={showHabitHelp}
+        onClose={() => setShowHabitHelp(false)}
+        title="Sua sequência"
+        help={{
+          intro: 'A chama conta quantos dias seguidos você cuidou do seu dinheiro.',
+          items: [
+            { icon: 'create-outline', text: 'Registrar qualquer gasto ou receita no dia já conta.' },
+            { icon: 'checkmark-circle-outline', text: 'Não gastou nada? Toque em “Hoje não gastei nada” para o dia contar.' },
+            { icon: 'flame', text: 'A sequência só quebra se passar um dia inteiro sem registrar.' },
+          ],
+        }}
+      />
 
       {/* O número do dia */}
       <View style={s.hero} testID="day-hero">
@@ -110,15 +150,27 @@ export default function Home() {
           </>
         ) : (
           <>
-            <Text style={s.heroLabel}>Hoje você pode gastar</Text>
+            <Pressable
+              testID="how-link"
+              style={s.heroLabelRow}
+              onPress={() => router.push('/how')}
+              accessibilityRole="button"
+              accessibilityLabel="Hoje você pode gastar. Toque para ver como calculamos"
+            >
+              <Text style={s.heroLabel}>Hoje você pode gastar</Text>
+              <Ionicons name="information-circle-outline" size={17} color={colors.primarySoft} />
+            </Pressable>
             <Text style={[s.heroValue, over && { color: '#FFD48A' }]} testID="day-number">
               {formatBRL(Math.max(0, plan.todayLeft ?? 0))}
             </Text>
             {over ? (
-              <Text style={s.heroOver}>Você passou {formatBRL(-(plan.todayLeft ?? 0))} do valor de hoje. Amanhã ele se ajusta.</Text>
+              <Text style={s.heroOver} testID="day-sub">
+                Você passou {formatBRL(-(plan.todayLeft ?? 0))} do valor de hoje. Amanhã o app recalcula com o que sobrou.
+              </Text>
             ) : (
-              <Text style={s.heroSub}>
-                de {formatBRL(plan.dailyBase)} por dia · {plan.daysLeft} {plan.daysLeft === 1 ? 'dia' : 'dias'} até o fim do mês
+              <Text style={s.heroSub} testID="day-sub">
+                de {formatBRL(plan.dailyBase)} por dia · {plan.daysLeft} {plan.daysLeft === 1 ? 'dia' : 'dias'}{' '}
+                {plan.mode === 'payday' ? `até o próximo recebimento (${shortDate(plan.end)})` : `até o fim do mês`}
               </Text>
             )}
             <View style={s.heroTrack}>
@@ -132,7 +184,7 @@ export default function Home() {
             </View>
             <View style={s.heroRow}>
               <View>
-                <Text style={s.heroSmall}>Sobra no mês</Text>
+                <Text style={s.heroSmall}>{plan.mode === 'payday' ? 'Até o próximo recebimento' : 'Sobra no mês'}</Text>
                 <Text style={s.heroAmount}>{formatBRL(Math.max(0, plan.remaining ?? 0))}</Text>
               </View>
               <View>
@@ -142,7 +194,14 @@ export default function Home() {
                 </Text>
               </View>
             </View>
-            <Pressable testID="can-buy" style={[s.heroBtn, s.heroBtnWide]} onPress={() => router.push('/can-buy')}>
+            <Pressable
+              testID="can-buy"
+              style={[s.heroBtn, s.heroBtnWide]}
+              onPress={() => {
+                updateSettings({ triedCanBuy: true });
+                router.push('/can-buy');
+              }}
+            >
               <Ionicons name="help-circle" size={20} color={colors.primaryDark} />
               <Text style={s.heroBtnText}>Posso comprar?</Text>
             </Pressable>
@@ -150,9 +209,15 @@ export default function Home() {
         )}
       </View>
 
+      {/* Primeiros passos */}
+      {!settings.guideDismissed && <FirstSteps steps={steps} onDismiss={() => updateSettings({ guideDismissed: true })} />}
+
       {/* Lançamento rápido */}
       <Card>
-        <Text style={s.cardTitle}>Registro rápido</Text>
+        <View style={s.rowBetween}>
+          <Text style={s.cardTitle}>Registro rápido</Text>
+          <Text style={s.muted}>Escreva como você fala</Text>
+        </View>
         <View style={s.quickRow}>
           <TextInput
             testID="quick-input"
@@ -202,6 +267,15 @@ export default function Home() {
             >
               <Text style={[s.link, { color: colors.expense }]}>Desfazer</Text>
             </Pressable>
+          </View>
+        )}
+        {!quick.trim() && !lastAdded && (
+          <View style={s.examples}>
+            {['almoço 32,50', 'uber 18 ontem', 'recebi salário 3.000', 'tênis 600 em 6x'].map((ex) => (
+              <Pressable key={ex} testID={`example-${ex.split(' ')[0]}`} style={s.example} onPress={() => setQuick(ex)}>
+                <Text style={s.exampleText}>{ex}</Text>
+              </Pressable>
+            ))}
           </View>
         )}
         <View style={s.actions}>
@@ -267,7 +341,9 @@ export default function Home() {
       {/* Contas fixas do mês */}
       <Card>
         <View style={s.rowBetween}>
-          <Text style={s.cardTitle}>Contas do mês</Text>
+          <Text style={[s.cardTitle, { flex: 1, marginRight: space.md }]} numberOfLines={1}>
+            {plan.mode === 'payday' ? 'Contas até o recebimento' : 'Contas do mês'}
+          </Text>
           <Pressable hitSlop={8} onPress={() => router.push('/recurring')} testID="open-recurring">
             <Text style={s.link}>{recurring.length ? 'Gerenciar' : 'Adicionar'}</Text>
           </Pressable>
@@ -279,21 +355,22 @@ export default function Home() {
             <Text style={s.limitText}>
               Fixas <Text style={s.strong}>{formatBRL(plan.recurringExpense)}</Text> · Parcelas <Text style={s.strong}>{formatBRL(plan.installments)}</Text>
             </Text>
-            {pendingSoon.length > 0 ? (
-              pendingSoon.map((r) => (
-                <View key={r.id} style={s.pendingRow}>
-                  <IconBubble icon={getCategory(r.categoryId).icon} color={getCategory(r.categoryId).color} size={30} />
-                  <Text style={s.pendingName} numberOfLines={1}>
-                    {r.name}
-                  </Text>
-                  <Text style={s.pendingDay}>{dayLabel(dateInMonth(month, r.dayOfMonth))}</Text>
-                  <Text style={[s.pendingAmount, r.type === 'income' && { color: colors.income }]}>
-                    {r.type === 'income' ? '+' : '-'} {formatBRL(r.amount)}
-                  </Text>
-                </View>
-              ))
+            {upcoming.length > 0 ? (
+              <>
+                <Text style={s.pendingTitle}>Ainda vão sair</Text>
+                {upcoming.map((l, i) => (
+                  <View key={`${l.label}-${i}`} style={s.pendingRow}>
+                    <Text style={s.pendingName} numberOfLines={1}>
+                      {l.label}
+                    </Text>
+                    <Text style={s.pendingDay}>{dayLabel(l.date)}</Text>
+                    <Text style={s.pendingAmount}>- {formatBRL(l.amount)}</Text>
+                  </View>
+                ))}
+                <Text style={s.pendingNote}>Esses valores já estão descontados do seu número do dia.</Text>
+              </>
             ) : (
-              <Text style={s.habitText}>Tudo que é fixo deste mês já foi lançado.</Text>
+              <Text style={s.habitText}>Tudo que é fixo deste período já foi lançado.</Text>
             )}
           </>
         )}
@@ -390,6 +467,12 @@ const s = StyleSheet.create({
     paddingHorizontal: 14,
     alignSelf: 'flex-start',
   },
+  heroLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start' },
+  examples: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.md },
+  example: { backgroundColor: colors.bg, borderRadius: radius.pill, paddingVertical: 8, paddingHorizontal: 14, borderWidth: 1, borderColor: colors.border },
+  exampleText: { fontSize: 13, color: colors.textSoft, fontStyle: 'italic' },
+  pendingTitle: { fontSize: 13, fontWeight: '700', color: colors.textSoft, marginTop: space.sm, marginBottom: 2 },
+  pendingNote: { fontSize: 12, color: colors.textMuted, marginTop: 6, lineHeight: 17 },
   heroBtnWide: { alignSelf: 'stretch', justifyContent: 'center', marginTop: space.lg, paddingVertical: 13 },
   heroBtnText: { color: colors.primaryDark, fontWeight: '800', fontSize: 14 },
   heroRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: space.lg, gap: space.lg },
